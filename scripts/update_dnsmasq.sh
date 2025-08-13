@@ -11,7 +11,7 @@ LOG_CAT="gfw"
 IPSET_NAME=LIBERTY_ADDRESS_GRP
 DNS_IP=8.8.8.8
 DNS_PORT=53
-OUT_FILE="/config/user-data/dnsmasq/gfw/dnsmasq_gfw_github.conf"
+
 BASE64_DECODE='base64 -d'
 SED_ERES='sed -r'
 
@@ -55,6 +55,10 @@ clean_and_exit(){
 }
 
 main() {
+    # get the output file path
+    BASE_PATH=$(dirname $(dirname "$(readlink -f "$0")"))
+    OUT_FILE="$BASE_PATH/gfw/dnsmasq_gfw_github.conf"
+
     # Set Global Var
     BASE_URL='https://github.com/gfwlist/gfwlist/raw/master/gfwlist.txt'
     #TMP_DIR=$(mktemp -d)
@@ -122,8 +126,19 @@ ipset=/\1/'$IPSET_NAME'#g' > $CONF_TMP_FILE
     sudo cp $OUT_TMP_FILE $OUT_FILE
     printf '\nConverting GfwList to '$OUT_TYPE'... ' && echo 'Done\n\n'
 
-    log_message "gfwlist updated"
+    # Download custom dnsmasq-ipset rules
+    echo "Downloading custom dnsmasq-ipset rules"
+    CUSTOM_RULES_URL='https://raw.githubusercontent.com/creeksidenetworks/dnsmasq_ipset/refs/heads/main/gfw/dnsmasq_gfw_custom.conf'
+
+    sudo curl -# -L $CURL_EXTARG -o $BASE_PATH/gfw/dnsmasq_gfw_custom.conf $CUSTOM_RULES_URL
+    if [ $? != 0 ]; then
+        echo '\nFailed to fetch custom dnsmasq-ipset rules. Please check your Internet connection.\n'
+        clean_and_exit 2
+    fi
+
     sudo systemctl restart dnsmasq
+
+    log_message "Gfw dnsmasq ipset list updated"
 
     # Clean up
     clean_and_exit 0
