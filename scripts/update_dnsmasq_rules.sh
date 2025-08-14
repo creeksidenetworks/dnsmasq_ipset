@@ -51,6 +51,22 @@ log_message() {
     fi
 }
 
+download_file() {
+    local url=$1
+    local output_file=$2
+
+    TMP_FILE=$(mktemp)
+    sudo curl -# -L $CURL_EXTARG -o $TMP_FILE $url
+    if [ $? != 0 ]; then
+        printf "\nFailed to fetch from $url.\n"
+        rm -f $TMP_FILE
+        clean_and_exit 2
+    else
+        sudo mv $TMP_FILE $output_file
+        rm -f $TMP_FILE
+    fi
+}
+
 clean_and_exit(){
     # Clean up temp files
     printf '\nCleaning up... '
@@ -64,6 +80,10 @@ clean_and_exit(){
 main() {
     # get the output file path
     BASE_PATH=$(dirname $(dirname "$(readlink -f "$0")"))
+
+    mkdir -p "$BASE_PATH/gfw"
+    mkdir -p "$BASE_PATH/repo"
+
     OUT_FILE="$BASE_PATH/gfw/dnsmasq_gfw_github.conf"
 
     # Set Global Var
@@ -82,19 +102,21 @@ main() {
     #INTERFACE=$(ip -4 --oneline route show 8.8.8.8 | awk '{print $3}')
     INTERFACE=$(ip route get 8.8.8.8 | grep -o 'dev [^ ]*' | cut -d' ' -f2)
 
-    echo "Downloading GfwList from github"
     # Check if the interface was found
     if [ ! -z "$INTERFACE" ]; then
         # Download the file to the temporary file using the jailbreak route
         CURL_EXTARG="--interface $INTERFACE"
     fi
 
-    sudo curl -# -L $CURL_EXTARG -o "$BASE64_FILE" "$BASE_URL"
+    echo "Downloading GfwList from github"
+    download_file "$BASE_URL" "$BASE64_FILE"
+    #sudo curl -# -L $CURL_EXTARG -o "$BASE64_FILE" "$BASE_URL"
 
-    if [ $? != 0 ]; then
-        echo '\nFailed to fetch gfwlist.txt. Please check your Internet connection, and check TLS support for curl/wget.\n'
-        clean_and_exit 2
-    fi
+    #if [ $? != 0 ]; then
+    #    echo '\nFailed to fetch gfwlist.txt. Please check your Internet connection, and check TLS support for curl/wget.\n'
+    #    clean_and_exit 2
+    #fi
+
     $BASE64_DECODE "$BASE64_FILE" > $GFWLIST_FILE || ( echo 'Failed to decode gfwlist.txt. Quit.\n'; clean_and_exit 2 )
 
     # Convert
@@ -135,15 +157,10 @@ ipset=/\1/'$IPSET_NAME'#g' > $CONF_TMP_FILE
 
     # Download custom dnsmasq-ipset rules
     echo "Downloading custom dnsmasq-ipset rules"
-    CUSTOM_RULES_URL='https://raw.githubusercontent.com/creeksidenetworks/dnsmasq_ipset/refs/heads/main/gfw/dnsmasq_gfw_custom.conf'
+    download_file "https://raw.githubusercontent.com/creeksidenetworks/dnsmasq_ipset/refs/heads/main/gfw/dnsmasq_gfw_custom.conf" "$BASE_PATH/gfw/dnsmasq_gfw_custom.conf"
 
-    sudo curl -# -L $CURL_EXTARG -o $TMP_DIR/dnsmasq_gfw_custom.conf $CUSTOM_RULES_URL
-    if [ $? != 0 ]; then
-        echo '\nFailed to fetch custom dnsmasq-ipset rules. Please check your Internet connection.\n'
-        clean_and_exit 2
-    fi
-
-    sudo mv $TMP_DIR/dnsmasq_gfw_custom.conf $BASE_PATH/gfw/dnsmasq_gfw_custom.conf
+    echo "Downloading linux repositories rules"
+    download_file "https://raw.githubusercontent.com/creeksidenetworks/dnsmasq_ipset/refs/heads/main/repo/dnsmasq_ipset_repos.conf" "$BASE_PATH/repo/dnsmasq_ipset_repos.conf"
 
     if [[ "$(uname -s)" == "Linux" ]]; then
         sudo systemctl restart dnsmasq
