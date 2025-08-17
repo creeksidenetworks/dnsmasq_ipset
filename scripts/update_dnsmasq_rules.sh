@@ -100,7 +100,7 @@ main() {
     # Fetch GfwList and decode it into plain text
     # Determine the interface for routing to 8.8.8.8
     #INTERFACE=$(ip -4 --oneline route show 8.8.8.8 | awk '{print $3}')
-    INTERFACE=$(ip route get 8.8.8.8 | grep -o 'dev [^ ]*' | cut -d' ' -f2)
+    INTERFACE=$(ip route get $DNS_IP | grep -o 'dev [^ ]*' | cut -d' ' -f2)
 
     # Check if the interface was found
     if [ ! -z "$INTERFACE" ]; then
